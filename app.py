@@ -1,13 +1,15 @@
 from aiohttp import web
 import socketio
-import threading
-import multiprocessing as mp
-import sys
-import asyncio
+# from aioconsole import ainput
+#import asyncio
+from xoxo import Game
+import numpy as np
 
 sio = socketio.AsyncServer()
 app = web.Application()
 sio.attach(app)
+#games_pool = []
+
 
 
 async def index(request):
@@ -22,9 +24,11 @@ def connect(sid, environ):
 
 
 @sio.event
-async def chat_message(data):
-    print("message ", data)
-    sio.emit('my event', {'data': data})
+async def chat_message(sid, data):
+    if data == 'create game':
+        await game_driver(sid)
+    else:
+        print("message ", data)
 
 
 @sio.event
@@ -32,29 +36,42 @@ def disconnect(sid):
     print('disconnect ', sid)
 
 
-def ask(stdin):
-    while True:
-        print('Enter your message ', )
-        data = stdin.readline().strip()
-        if data == "exit":
-            stdin.close()
-            return
-        else:
-            asyncio.run(chat_message(data))
+#
+# @sio.event
+# async def game_driver(sid, command):
+#     if command == 'create game':
+#         game = Game(4, sid, 'a7')
+#         games_pool.append(game)
+#         await sio.emit('xoxo', 'ваш ход типа 1,1', room=sid)
+#     elif 'move' in command:
+#         print('move', command)
+#         game = games_pool.pop()
+#         move = tuple(map(int, command['move'].split(',')))
+#         game.move(sid, move)
+#         print(game.field)
+#         games_pool.append(game)
+#     else:
+#         print('else', command)
+def callback(response):
+    print('функция колбек работает!')
+    print(response)
+
+
+@sio.event
+async def game_driver(sid):
+    game = Game(4, sid, 'a7')
+    while game.state == 0:
+        field=game.field.tolist()
+        response = await sio.call('xoxo', data={'message': 'Ваш ход','field':field}, sid=sid)
+        move = tuple(map(int, response.split(',')))
+        game.move(sid, move)
+        print(game.field)
+        print(game.state)
 
 
 app.router.add_static('/static', 'static')
 app.router.add_get('/', index)
 
-
-def server():
-    web.run_app(app)
-
-
 if __name__ == '__main__':
-    p1 = mp.Process(target=server)
-    p1.start()
-    t1 = threading.Thread(target=ask, args=(sys.stdin,))
-    t1.start()
-    p1.join()
-    t1.join()
+    # sio.start_background_task(chat_message)
+    web.run_app(app)
