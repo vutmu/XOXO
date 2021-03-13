@@ -52,7 +52,7 @@ async def chat_message():
 
 async def main():
     sio.start_background_task(chat_message)
-    await sio.connect('http://localhost:8080')
+    await sio.connect('https://wasmoh-xoxo.herokuapp.com/')
     await sio.wait()
 
 
