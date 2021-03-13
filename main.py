@@ -69,7 +69,7 @@ async def game_driver(sid):
         print(game.state)
 
 
-app.router.add_static('/static', 'static')
+#app.router.add_static('/static', 'static')
 app.router.add_get('/', index)
 
 if __name__ == '__main__':
