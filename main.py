@@ -79,4 +79,4 @@ app.add_routes(
     [web.get('/', index)]
 )
 
-web.run_app(app)
+web.run_app(app, port=os.environ['PORT'])
