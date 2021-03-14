@@ -1,21 +1,27 @@
 from aiohttp import web
 import socketio
-# from aioconsole import ainput
-#import asyncio
+import aiohttp_jinja2
+import jinja2
 from xoxo import Game
-import numpy as np
+import os
 
 sio = socketio.AsyncServer()
 app = web.Application()
 sio.attach(app)
-#games_pool = []
+aiohttp_jinja2.setup(
+    app,
+    loader=jinja2.FileSystemLoader('./templates')
+)
 
+
+# games_pool = []
 
 
 async def index(request):
-    """Serve the client-side application."""
-    with open('index.html') as f:
-        return web.Response(text=f.read(), content_type='text/html')
+    context = {'name': 'world!'}
+    return aiohttp_jinja2.render_template(
+        'index.jinja2', request, context
+    )
 
 
 @sio.event
@@ -61,17 +67,16 @@ def callback(response):
 async def game_driver(sid):
     game = Game(4, sid, 'a7')
     while game.state == 0:
-        field=game.field.tolist()
-        response = await sio.call('xoxo', data={'message': 'Ваш ход','field':field}, sid=sid)
+        field = game.field.tolist()
+        response = await sio.call('xoxo', data={'message': 'Ваш ход', 'field': field}, sid=sid)
         move = tuple(map(int, response.split(',')))
         game.move(sid, move)
         print(game.field)
         print(game.state)
 
 
-app.router.add_static('/static', 'static')
-app.router.add_get('/', index)
+app.add_routes(
+    [web.get('/', index)]
+)
 
-if __name__ == '__main__':
-    # sio.start_background_task(chat_message)
-    web.run_app(app)
+web.run_app(app)
