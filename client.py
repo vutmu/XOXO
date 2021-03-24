@@ -5,8 +5,11 @@ from aioconsole import ainput
 sio = socketio.AsyncClient()
 
 
+# TODO set connection timeout!
+
+
 @sio.event
-async def connect():
+def connect():
     print('connection established')
 
 
@@ -19,6 +22,12 @@ def test(data):
 @sio.event
 async def disconnect():
     print('disconnected from server')
+
+
+@sio.event
+def connect_error(data):
+    print("The connection failed!")
+    print('сообщение из еррора', data)
 
 
 # @sio.event
@@ -52,8 +61,18 @@ async def chat_message():
 
 async def main():
     sio.start_background_task(chat_message)
-    await sio.connect('https://wasmoh-xoxo.herokuapp.com/')
-    #await sio.connect('http://localhost:8080/')
+    connected = False
+    counter = 1
+    while not connected:
+        try:
+            print(f'попытка соединения номер{counter}')
+            #await sio.connect('https://wasmoh-xoxo.herokuapp.com/')
+            await sio.connect('http://localhost:8080/')
+            connected = True
+        except:
+            await sio.sleep(5)
+        counter += 1
+
     await sio.wait()
 
 

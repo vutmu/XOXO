@@ -35,5 +35,4 @@ class Game:
                     all(np.diagonal(np.fliplr(self.field)) == pattern):
                 self.state = 1
                 return self.field, f'player{player_id}wins!'
-        #return 'next turn'
 

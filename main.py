@@ -4,6 +4,11 @@ import aiohttp_jinja2
 import jinja2
 from xoxo import Game
 import os
+from dotenv import load_dotenv
+
+dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
+if os.path.exists(dotenv_path):
+    load_dotenv(dotenv_path)
 
 sio = socketio.AsyncServer()
 app = web.Application()
@@ -15,7 +20,6 @@ aiohttp_jinja2.setup(
 
 
 # games_pool = []
-
 
 async def index(request):
     context = {'name': 'world!'}
@@ -58,23 +62,20 @@ def disconnect(sid):
 #         games_pool.append(game)
 #     else:
 #         print('else', command)
-def callback(response):
-    print('функция колбек работает!')
-    print(response)
-
-
 @sio.event
 async def game_driver(sid):
+    print("game driver started")
     game = Game(4, sid, 'a7')
     while game.state == 0:
         field = game.field.tolist()
         response = await sio.call('xoxo', data={'message': 'Ваш ход', 'field': field}, sid=sid)
+        response=response['point']
         move = tuple(map(int, response.split(',')))
         game.move(sid, move)
         print(game.field)
         print(game.state)
 
-
+app.router.add_static('/static', 'static')
 app.add_routes(
     [web.get('/', index)]
 )
