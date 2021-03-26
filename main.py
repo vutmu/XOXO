@@ -5,6 +5,7 @@ import jinja2
 from xoxo import Game
 import os
 from dotenv import load_dotenv
+from queue import Queue
 
 dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
 if os.path.exists(dotenv_path):
@@ -18,6 +19,8 @@ aiohttp_jinja2.setup(
     loader=jinja2.FileSystemLoader('./templates')
 )
 
+members = Queue()
+
 
 # games_pool = []
 
@@ -30,13 +33,14 @@ async def index(request):
 
 @sio.event
 def connect(sid, environ):
+    members.put(sid)
     print("connect ", sid)
 
 
 @sio.event
 async def chat_message(sid, data):
-    if data == 'create game':
-        await game_driver(sid)
+    if data == 'create game' and members.qsize() == 2:
+        await game_driver(members)
     else:
         print("message ", data)
 
@@ -63,17 +67,25 @@ def disconnect(sid):
 #     else:
 #         print('else', command)
 @sio.event
-async def game_driver(sid):
+async def game_driver(members):
     print("game driver started")
-    game = Game(4, sid, 'a7')
+    first_player, second_player = members.get(), members.get()
+    sio.enter_room(first_player, 'room_battle')
+    sio.enter_room(second_player, 'room_battle')
+    game = Game('room_battle', first_player, second_player)
     while game.state == 0:
         field = game.field.tolist()
+        await sio.emit('set_field', {'field': field}, room='room_battle')
+        sid = game.first_player
+        print(sid, 'этот должен ходить следующий')
         response = await sio.call('xoxo', data={'message': 'Ваш ход', 'field': field}, sid=sid)
-        response=response['point']
+        response = response['point']
         move = tuple(map(int, response.split(',')))
         game.move(sid, move)
+        await sio.emit('set_field', {'field': field}, room='room_battle')
         print(game.field)
         print(game.state)
+
 
 app.router.add_static('/static', 'static')
 app.add_routes(

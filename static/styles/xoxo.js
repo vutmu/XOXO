@@ -53,9 +53,10 @@ async function move() {
 //    return('клетка не пуста!')
 //  }
 //})
-
+socket.on("set_field", (data) => {
+    field(data)
+})
 
 socket.on("xoxo", async (data, callback) => {
-    field(data)
     await callback(await move())
 })
