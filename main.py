@@ -24,11 +24,17 @@ members = Queue()
 
 # games_pool = []
 
-async def index(request):
-    context = {'name': 'world!'}
-    return aiohttp_jinja2.render_template(
-        'index.jinja2', request, context
-    )
+# async def index(request):
+#     context = {'name': 'world!'}
+#     response = aiohttp_jinja2.render_template(
+#         'index.jinja2', request, context)
+#     response.headers['Content-Language'] = 'ru'
+#     return response
+
+@aiohttp_jinja2.template('index.jinja2')
+def index(request):
+    context = {'name': request.query}
+    return context
 
 
 @sio.event
@@ -68,7 +74,6 @@ def disconnect(sid):
 #         print('else', command)
 @sio.event
 async def game_driver(members):
-    print("game driver started")
     first_player, second_player = members.get(), members.get()
     sio.enter_room(first_player, 'room_battle')
     sio.enter_room(second_player, 'room_battle')
@@ -77,14 +82,18 @@ async def game_driver(members):
         field = game.field.tolist()
         await sio.emit('set_field', {'field': field}, room='room_battle')
         sid = game.first_player
-        print(sid, 'этот должен ходить следующий')
-        response = await sio.call('xoxo', data={'message': 'Ваш ход', 'field': field}, sid=sid)
-        response = response['point']
-        move = tuple(map(int, response.split(',')))
-        game.move(sid, move)
+        approve_move = False
+        while not approve_move:
+            response = await sio.call('xoxo', data={'message': 'Ваш ход', 'field': field}, sid=sid)
+            response = response['point']
+            move = tuple(map(int, response.split(',')))
+            approve_move = game.move(sid, move)
+            if not approve_move:
+                await sio.emit('game_message', data={'message': 'клетка уже занята!'}, room=sid)
         await sio.emit('set_field', {'field': field}, room='room_battle')
-        print(game.field)
-        print(game.state)
+    field = game.field.tolist()
+    await sio.emit('set_field', {'field': field}, room='room_battle')
+    await sio.emit('game_message', {'message': approve_move}, room='room_battle')
 
 
 app.router.add_static('/static', 'static')

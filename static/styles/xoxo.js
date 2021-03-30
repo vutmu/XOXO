@@ -57,6 +57,10 @@ socket.on("set_field", (data) => {
     field(data)
 })
 
+socket.on("game_message", (data) => {
+    $('#game_message').html(data.message)
+})
+
 socket.on("xoxo", async (data, callback) => {
     await callback(await move())
 })

@@ -18,9 +18,7 @@ class Game:
     def move(self, player_id, point):
         line, column = point[0], point[1]
         if self.field[line][column] != '_':
-            return print("клетка занята!")
-        elif self.second_player == player_id:
-            return print("сейчас очередь другого игрока!")
+            return False  # "клетка занята!"
         elif player_id == self.player1_id:
             self.field[line][column] = 'X'
         elif player_id == self.player2_id:
@@ -28,12 +26,18 @@ class Game:
         self.move_count += 1
         self.first_player, self.second_player = self.second_player, self.first_player
 
-        """then check win conditions (after 4 moves)"""
-        if self.move_count >= 1:
+        """then check win/draw conditions (after 4 moves)"""
+        if self.move_count >= 4:
             pattern = Game.pattern1 if player_id == self.player1_id else Game.pattern2
             if all(np.take(self.field, line, axis=0) == pattern) or \
                     all(np.take(self.field, column, axis=1) == pattern) or \
                     all(np.diagonal(self.field) == pattern) or \
                     all(np.diagonal(np.fliplr(self.field)) == pattern):
                 self.state = 1
-                return self.field, f'player{player_id}wins!'
+                return f'player{player_id}wins!'
+            elif self.move_count == 9:
+                self.state = 1
+                return 'ничейка!'
+            else:
+                return True
+        return True
