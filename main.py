@@ -34,8 +34,7 @@ members = Queue()
 
 def index(request):
     if 'token' not in request.query:
-        print("я тута")
-        context = {'name': 'world'}
+        context = {'name': 'token not in request.query'}
         response = aiohttp_jinja2.render_template('404_not_found.jinja2',
                                                   request,
                                                   context)
@@ -45,7 +44,7 @@ def index(request):
         req = r.post(os.environ['CHECK_AUTH'], data={'token': token, 'secret_key': secret_key})
         resp = req.json()
         if (resp['name'] == 'permission denied') or (resp['name'] == 'wrong request!'):
-            context = {'name': 'world'}
+            context = {'name': resp}
             response = aiohttp_jinja2.render_template('404_not_found.jinja2',
                                                       request,
                                                       context)
