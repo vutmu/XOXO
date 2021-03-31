@@ -43,8 +43,8 @@ def index(request):
         secret_key = 'very_secret_key'
         req = r.post(os.environ['CHECK_AUTH'], data={'token': token, 'secret_key': secret_key})
         resp = req.json()
-        if (resp['name'] == 'permission denied') or (resp['name'] == 'wrong request!'):
-            context = {'name': resp}
+        if  (resp['status'] == 'fail'):
+            context = {'name': resp['name']}
             response = aiohttp_jinja2.render_template('404_not_found.jinja2',
                                                       request,
                                                       context)
