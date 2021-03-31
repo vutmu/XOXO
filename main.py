@@ -6,12 +6,13 @@ from xoxo import Game
 import os
 from dotenv import load_dotenv
 from queue import Queue
+import requests as r
 
 dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
 if os.path.exists(dotenv_path):
     load_dotenv(dotenv_path)
 
-sio = socketio.AsyncServer()
+sio = socketio.AsyncServer(logger=True, engineio_logger=True)
 app = web.Application()
 sio.attach(app)
 aiohttp_jinja2.setup(
@@ -31,16 +32,51 @@ members = Queue()
 #     response.headers['Content-Language'] = 'ru'
 #     return response
 
-@aiohttp_jinja2.template('index.jinja2')
 def index(request):
-    context = {'name': request.query}
-    return context
+    if 'token' not in request.query:
+        print("я тута")
+        context = {'name': 'world'}
+        response = aiohttp_jinja2.render_template('404_not_found.jinja2',
+                                                  request,
+                                                  context)
+    else:
+        token = request.query['token']
+        secret_key = 'very_secret_key'
+        req = r.post(os.environ['CHECK_AUTH'], data={'token': token, 'secret_key': secret_key})
+        resp = req.json()
+        if (resp['name'] == 'permission denied') or (resp['name'] == 'wrong request!'):
+            context = {'name': 'world'}
+            response = aiohttp_jinja2.render_template('404_not_found.jinja2',
+                                                      request,
+                                                      context)
+        else:
+            context = {'name': resp}
+
+            response = aiohttp_jinja2.render_template('index.jinja2',
+                                                      request,
+                                                      context)
+    return response
+
+
+# @aiohttp_jinja2.template('index.jinja2')
+# def index(request):
+#     if 'token' in request.query:
+#         token = request.query['token']
+#         req = r.post('http://127.0.0.1:5000/tokens', data={'token': token})
+#         # TODO этот запрос небезопасен! переделать
+#         name = req.json()
+#         context = {'name': name}
+#         return context
+#     else:
+#         return {'name': 'world'}
 
 
 @sio.event
 def connect(sid, environ):
     members.put(sid)
     print("connect ", sid)
+    for i in environ:
+        print(i, environ[i])
 
 
 @sio.event
