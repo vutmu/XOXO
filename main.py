@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 from queue import Queue
 import requests as r
 
-import time
 import base64
 from cryptography import fernet
 from aiohttp_session import setup as setup_session, get_session, new_session
