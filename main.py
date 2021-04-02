@@ -47,9 +47,9 @@ async def make_app():
 #     return response
 
 async def index(request):
-    session= await get_session(request)
+    session = await get_session(request)
     if session:
-        context={'name':session['username']}
+        context = {'name': session['username']}
         response = aiohttp_jinja2.render_template('index.jinja2',
                                                   request,
                                                   context)
@@ -72,7 +72,7 @@ async def index(request):
                                                           context)
             else:
                 session = await new_session(request)
-                session['username']=resp['name']
+                session['username'] = resp['name']
                 print('это данные сессии', session)
                 context = {'name': resp['name']}
 
@@ -99,8 +99,6 @@ async def index(request):
 def connect(sid, environ):
     members.put(sid)
     print("connect ", sid)
-    # for i in environ:
-    #     print(i, environ[i])
 
 
 @sio.event
