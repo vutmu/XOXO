@@ -8,19 +8,34 @@ from dotenv import load_dotenv
 from queue import Queue
 import requests as r
 
+import time
+import base64
+from cryptography import fernet
+from aiohttp_session import setup as setup_session, get_session, new_session
+from aiohttp_session.cookie_storage import EncryptedCookieStorage
+
 dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
 if os.path.exists(dotenv_path):
     load_dotenv(dotenv_path)
 
-sio = socketio.AsyncServer(logger=True, engineio_logger=True)
-app = web.Application()
-sio.attach(app)
-aiohttp_jinja2.setup(
-    app,
-    loader=jinja2.FileSystemLoader('./templates')
-)
-
 members = Queue()
+
+sio = socketio.AsyncServer()
+
+
+async def make_app():
+    app = web.Application()
+    sio.attach(app)
+    fernet_key = fernet.Fernet.generate_key()
+    secret_key = base64.urlsafe_b64decode(fernet_key)
+    setup_session(app, EncryptedCookieStorage(secret_key))
+    aiohttp_jinja2.setup(
+        app,
+        loader=jinja2.FileSystemLoader('./templates'))
+    app.router.add_static('/static', 'static')
+    app.add_routes(
+        [web.get('/', index)])
+    return app
 
 
 # games_pool = []
@@ -32,29 +47,40 @@ members = Queue()
 #     response.headers['Content-Language'] = 'ru'
 #     return response
 
-def index(request):
-    if 'token' not in request.query:
-        context = {'name': 'token not in request.query'}
-        response = aiohttp_jinja2.render_template('404_not_found.jinja2',
+async def index(request):
+    session= await get_session(request)
+    if session:
+        context={'name':session['username']}
+        response = aiohttp_jinja2.render_template('index.jinja2',
                                                   request,
                                                   context)
+        return response
     else:
-        token = request.query['token']
-        secret_key = 'very_secret_key'
-        req = r.post(os.environ['CHECK_AUTH'], data={'token': token, 'secret_key': secret_key})
-        resp = req.json()
-        if  (resp['status'] == 'fail'):
-            context = {'name': resp['name']}
+        if 'token' not in request.query:
+            context = {'name': 'token not in request.query'}
             response = aiohttp_jinja2.render_template('404_not_found.jinja2',
                                                       request,
                                                       context)
         else:
-            context = {'name': resp}
+            token = request.query['token']
+            secret_key = 'very_secret_key'
+            req = r.post(os.environ['CHECK_AUTH'], data={'token': token, 'secret_key': secret_key})
+            resp = req.json()
+            if resp['status'] == 'fail':
+                context = {'name': resp['name']}
+                response = aiohttp_jinja2.render_template('404_not_found.jinja2',
+                                                          request,
+                                                          context)
+            else:
+                session = await new_session(request)
+                session['username']=resp['name']
+                print('это данные сессии', session)
+                context = {'name': resp['name']}
 
-            response = aiohttp_jinja2.render_template('index.jinja2',
-                                                      request,
-                                                      context)
-    return response
+                response = aiohttp_jinja2.render_template('index.jinja2',
+                                                          request,
+                                                          context)
+        return response
 
 
 # @aiohttp_jinja2.template('index.jinja2')
@@ -74,8 +100,8 @@ def index(request):
 def connect(sid, environ):
     members.put(sid)
     print("connect ", sid)
-    for i in environ:
-        print(i, environ[i])
+    # for i in environ:
+    #     print(i, environ[i])
 
 
 @sio.event
@@ -131,9 +157,4 @@ async def game_driver(members):
     await sio.emit('game_message', {'message': approve_move}, room='room_battle')
 
 
-app.router.add_static('/static', 'static')
-app.add_routes(
-    [web.get('/', index)]
-)
-
-web.run_app(app, port=os.environ['PORT'])
+web.run_app(make_app(), port=os.environ['PORT'])
