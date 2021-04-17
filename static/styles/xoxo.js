@@ -1,13 +1,35 @@
 
 
 const socket = io(location.href)
+//socket.on("connect", () => {
+//  socket.emit("chat_message", "create game",);
+//});
 socket.on("connect", () => {
-  socket.emit("chat_message", "create game",);
+  socket.emit("chat_message", "get_visitors", (response) =>{
+        $.each(response, render_visitor )
+  });
+});
+
+socket.on("add_visitor", (data) =>{
+    $.each(data, render_visitor )
+});
+
+function render_visitor(name, avatar){
+    let visitorblock = `
+                <div class="visitorblock" id=${name}>
+                    ${name}<br>
+                    <img src=${avatar} class="avka" alt="avatarka">
+                </div>`;
+    $('#visitors').append(visitorblock)
+}
+
+socket.on("del_visitor", (data) =>{
+    let id='#'+data
+    $(id).remove()
 });
 
 function field(field){
     field=field.field
-//    field.forEach((item, i, arr)=>console.log(item, i))
     $("#grid-container>*").each(function(){
         let point=$(this).attr('id')
         let arr= point.split(',')

@@ -1,0 +1,15 @@
+* {box-sizing: border-box; }
+#grid-container {background: rgb(0, 150, 208); display: grid; height: auto; grid-template-columns: 50px 50px 50px; grid-template-rows: 50px 50px 50px; }
+#grid-container > div {background: rgb(241, 101, 41); border: 1px solid; margin: 0px; padding: 0px; }
+
+#visitors {
+    display: flex;
+    flex-direction: column;
+}
+
+#visitors > div {
+    width: 30%;
+}
+.visitorblock {
+    border: solid 1px red;
+}

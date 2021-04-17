@@ -7,33 +7,37 @@ import os
 from dotenv import load_dotenv
 from queue import Queue
 import requests as r
-
 import base64
 from cryptography import fernet
 from aiohttp_session import setup as setup_session, get_session, new_session
 from aiohttp_session.cookie_storage import EncryptedCookieStorage
+import re
+import ast
+import redis
 
 dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
 if os.path.exists(dotenv_path):
     load_dotenv(dotenv_path)
 
 members = Queue()
+Visitors = redis.from_url(os.environ.get("REDIS_URL"), db=1)
 
 sio = socketio.AsyncServer()
+fernet_key = bytes(os.environ['FERNET_KEY'], 'ascii')
+secret_key = base64.urlsafe_b64decode(fernet_key)
 
 
 async def make_app():
     app = web.Application()
     sio.attach(app)
-    fernet_key = fernet.Fernet.generate_key()
-    secret_key = base64.urlsafe_b64decode(fernet_key)
+    # setup_session(app, SimpleCookieStorage())
     setup_session(app, EncryptedCookieStorage(secret_key))
     aiohttp_jinja2.setup(
         app,
         loader=jinja2.FileSystemLoader('./templates'))
     app.router.add_static('/static', 'static')
     app.add_routes(
-        [web.get('/', index)])
+        [web.get('/', index), web.get('/another', another_page)])
     return app
 
 
@@ -45,6 +49,19 @@ async def make_app():
 #         'index.jinja2', request, context)
 #     response.headers['Content-Language'] = 'ru'
 #     return response
+
+
+# async def middleware1(request, handler):
+#     print('middleware1 запущен')
+#     session = await get_session(request)
+
+async def another_page(request):
+    context = {'name': {i for i in Visitors}} #this is wrong!
+    response = aiohttp_jinja2.render_template('another_page.jinja2',
+                                              request,
+                                              context)
+    return response
+
 
 async def index(request):
     session = await get_session(request)
@@ -73,8 +90,8 @@ async def index(request):
             else:
                 session = await new_session(request)
                 session['username'] = resp['name']
-                print('это данные сессии', session)
-                context = {'name': resp['name']}
+                session['avatar'] = resp['avatar']
+                context = {'name': resp['name'], 'avatar': resp['avatar']}
 
                 response = aiohttp_jinja2.render_template('index.jinja2',
                                                           request,
@@ -94,23 +111,47 @@ async def index(request):
 #     else:
 #         return {'name': 'world'}
 
-
 @sio.event
-def connect(sid, environ):
-    members.put(sid)
-    print("connect ", sid)
+async def connect(sid, environ):
+    # members.put(sid)
+    obj = ast.literal_eval(authenticate_user(environ))
+    username = obj['session']['username']
+    avatar = obj['session']['avatar']
+    await sio.save_session(sid, {'username': username, 'avatar': avatar})
+    sio.enter_room(sid, 'Visitors')
+    await sio.emit('add_visitor', {username: avatar}, room='Visitors', skip_sid=sid)
+    Visitors.set(username, avatar)
+    print("connect ", sid, username)
+
+
+def authenticate_user(environ):
+    cookies = environ['HTTP_COOKIE'].split(';')
+    print(cookies)
+    regexp = '\s*AIOHTTP_SESSION='
+    for i in cookies:
+        if re.match(regexp, i):
+            AIOHTTP_SESSION = i[17:]
+    f = fernet.Fernet(fernet_key)
+    return f.decrypt(bytes(AIOHTTP_SESSION, 'ascii')).decode('utf-8')
 
 
 @sio.event
 async def chat_message(sid, data):
-    if data == 'create game' and members.qsize() == 2:
+    if data == 'create game' and members.qsize() == 10:  # тут дб 2 чтобы игра стартовала
         await game_driver(members)
+    elif data == 'get_visitors':
+        Dict = {i.decode('ascii'): Visitors.get(i).decode('ascii') for i in Visitors.keys()}
+        return Dict                 #TODO тут нужна пагинация!
     else:
         print("message ", data)
 
 
 @sio.event
-def disconnect(sid):
+async def disconnect(sid):
+    session = await sio.get_session(sid)
+    username = session['username']
+    Visitors.delete(username)
+    await sio.emit('del_visitor', username, room='Visitors')
     print('disconnect ', sid)
 
 
