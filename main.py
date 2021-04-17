@@ -56,7 +56,7 @@ async def make_app():
 #     session = await get_session(request)
 
 async def another_page(request):
-    context = {'name': {i for i in Visitors}} #this is wrong!
+    context = {'name': {i for i in Visitors}}  # this is wrong!
     response = aiohttp_jinja2.render_template('another_page.jinja2',
                                               request,
                                               context)
@@ -130,7 +130,7 @@ def authenticate_user(environ):
     regexp = '\s*AIOHTTP_SESSION='
     for i in cookies:
         if re.match(regexp, i):
-            AIOHTTP_SESSION = i[17:]
+            AIOHTTP_SESSION = re.findall('".*"', i)[-1]
     f = fernet.Fernet(fernet_key)
     return f.decrypt(bytes(AIOHTTP_SESSION, 'ascii')).decode('utf-8')
 
@@ -141,7 +141,7 @@ async def chat_message(sid, data):
         await game_driver(members)
     elif data == 'get_visitors':
         Dict = {i.decode('ascii'): Visitors.get(i).decode('ascii') for i in Visitors.keys()}
-        return Dict                 #TODO тут нужна пагинация!
+        return Dict  # TODO тут нужна пагинация!
     else:
         print("message ", data)
 
