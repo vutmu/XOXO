@@ -79,8 +79,8 @@ async def index(request):
                                                       context)
         else:
             token = request.query['token']
-            secret_key = 'very_secret_key'
-            req = r.post(os.environ['CHECK_AUTH'], data={'token': token, 'secret_key': secret_key})
+            wasmoh_key = 'very_secret_key'
+            req = r.post(os.environ['CHECK_AUTH'], data={'token': token, 'secret_key': wasmoh_key})
             resp = req.json()
             if resp['status'] == 'fail':
                 context = {'name': resp['name']}
