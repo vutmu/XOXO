@@ -66,7 +66,7 @@ async def another_page(request):
 async def index(request):
     session = await get_session(request)
     if session:
-        context = {'name': session['username']}
+        context = {'name': session['username'], 'avatar': session['avatar'], 'user_id': session['user_id']}
         response = aiohttp_jinja2.render_template('index.jinja2',
                                                   request,
                                                   context)
@@ -91,7 +91,8 @@ async def index(request):
                 session = await new_session(request)
                 session['username'] = resp['name']
                 session['avatar'] = resp['avatar']
-                context = {'name': resp['name'], 'avatar': resp['avatar']}
+                session['user_id'] = resp['user_id']
+                context = {'name': resp['name'], 'avatar': resp['avatar'], 'user_id': resp['user_id']}
 
                 response = aiohttp_jinja2.render_template('index.jinja2',
                                                           request,
@@ -117,10 +118,12 @@ async def connect(sid, environ):
     obj = ast.literal_eval(authenticate_user(environ))
     username = obj['session']['username']
     avatar = obj['session']['avatar']
-    await sio.save_session(sid, {'username': username, 'avatar': avatar})
+    user_id = str(obj['session']['user_id'])
+    print(username, avatar, user_id)
+    await sio.save_session(sid, {'username': username, 'avatar': avatar, 'user_id': user_id})
     sio.enter_room(sid, 'Visitors')
-    await sio.emit('add_visitor', {username: avatar}, room='Visitors', skip_sid=sid)
-    Visitors.set(username, avatar)
+    await sio.emit('add_visitor', {'data': (user_id, username, avatar)}, room='Visitors', skip_sid=sid)
+    Visitors.set(user_id, f"{username}, {avatar}")
     print("connect ", sid, username)
 
 
@@ -132,7 +135,7 @@ def authenticate_user(environ):
         if re.match(regexp, i):
             AIOHTTP_SESSION = re.findall('".*"', i)[-1]
     f = fernet.Fernet(fernet_key)
-    return f.decrypt(bytes(AIOHTTP_SESSION, 'ascii')).decode('utf-8')
+    return f.decrypt(bytes(AIOHTTP_SESSION, 'utf-8')).decode('utf-8')
 
 
 @sio.event
@@ -140,8 +143,15 @@ async def chat_message(sid, data):
     if data == 'create game' and members.qsize() == 10:  # тут дб 2 чтобы игра стартовала
         await game_driver(members)
     elif data == 'get_visitors':
-        Dict = {i.decode('ascii'): Visitors.get(i).decode('ascii') for i in Visitors.keys()}
-        return Dict  # TODO тут нужна пагинация!
+        session = await sio.get_session(sid)
+        List = []
+        for i in Visitors.keys():
+            user_id = i.decode('utf-8')
+            username, avatar = Visitors.get(i).decode('utf-8').split(', ')
+            if session['user_id'] != user_id:
+                List.append((user_id, username, avatar))
+        print('это лист', List)
+        return List  # TODO тут нужна пагинация!
     else:
         print("message ", data)
 
@@ -150,8 +160,9 @@ async def chat_message(sid, data):
 async def disconnect(sid):
     session = await sio.get_session(sid)
     username = session['username']
-    Visitors.delete(username)
-    await sio.emit('del_visitor', username, room='Visitors')
+    user_id = session['user_id']
+    Visitors.delete(user_id)
+    await sio.emit('del_visitor', user_id, room='Visitors')
     print('disconnect ', sid)
 
 

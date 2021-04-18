@@ -6,17 +6,21 @@ const socket = io(location.href)
 //});
 socket.on("connect", () => {
   socket.emit("chat_message", "get_visitors", (response) =>{
-        $.each(response, render_visitor )
+        response.forEach(element => render_visitor(element) )
   });
 });
 
 socket.on("add_visitor", (data) =>{
-    $.each(data, render_visitor )
+    console.log(data.data)
+    render_visitor(data.data)
 });
 
-function render_visitor(name, avatar){
+function render_visitor(element){
+    let user_id=element[0]
+    let name=element[1]
+    let avatar=element[2]
     let visitorblock = `
-                <div class="visitorblock" id=${name}>
+                <div class="visitorblock" id=${user_id}>
                     ${name}<br>
                     <img src=${avatar} class="avka" alt="avatarka">
                 </div>`;
