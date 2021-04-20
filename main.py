@@ -5,7 +5,6 @@ import jinja2
 from xoxo import Game
 import os
 from dotenv import load_dotenv
-from queue import Queue
 import requests as r
 import base64
 from cryptography import fernet
@@ -19,7 +18,6 @@ dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
 if os.path.exists(dotenv_path):
     load_dotenv(dotenv_path)
 
-members = Queue()
 Visitors = redis.from_url(os.environ.get("REDIS_URL"), db=1)
 Visitors.flushdb()  # это очищает список визитеров перед запуском сервера!
 
@@ -31,7 +29,6 @@ secret_key = base64.urlsafe_b64decode(fernet_key)
 async def make_app():
     app = web.Application()
     sio.attach(app)
-    # setup_session(app, SimpleCookieStorage())
     setup_session(app, EncryptedCookieStorage(secret_key))
     aiohttp_jinja2.setup(
         app,
@@ -115,7 +112,6 @@ async def index(request):
 
 @sio.event
 async def connect(sid, environ):
-    # members.put(sid)
     obj = ast.literal_eval(authenticate_user(environ))
     username = obj['session']['username']
     avatar = obj['session']['avatar']
@@ -134,16 +130,14 @@ def authenticate_user(environ):
     regexp = '\s*AIOHTTP_SESSION='
     for i in cookies:
         if re.match(regexp, i):
-            AIOHTTP_SESSION = re.findall('".*"', i)[-1]
+            AIOHTTP_SESSION = re.split('=', i)[-1]
     f = fernet.Fernet(fernet_key)
     return f.decrypt(bytes(AIOHTTP_SESSION, 'utf-8')).decode('utf-8')
 
 
 @sio.event
 async def chat_message(sid, data):
-    if data == 'create game' and members.qsize() == 10:  # тут дб 2 чтобы игра стартовала
-        await game_driver(members)
-    elif data == 'get_visitors':
+    if data == 'get_visitors':
         session = await sio.get_session(sid)
         List = []
         for i in Visitors.keys():
