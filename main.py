@@ -166,7 +166,7 @@ async def matchmaker(sid, data):
     response = await sio.call('approve_invite', data={'message': f'игрок {player1_username} вызывает вас ну дуель!'},
                               sid=player2_sid)
     if response=='NO!':
-        await sio.emit('game_message', data={'message': f'игрок {player2_username} отклонил ваш вызов!'}, sid=sid)
+        await sio.emit('game_message', data={'message': f'игрок {player2_username} отклонил ваш вызов!'}, room=player1_sid)
     elif response=='OK!':
         await game_driver(player1_sid, player2_sid)
     # print(f"игрок {player1_username} вызывает игрока {player2_username} на дуэль! ")
@@ -210,7 +210,7 @@ async def game_driver(first_player, second_player):
         await sio.emit('set_field', {'field': field}, room=room_battle)
         approve_move = False
         while not approve_move:
-            await sio.emit('game_message', data={'message': 'Сейчас ход противника!'}, sid=game.second_player)
+            await sio.emit('game_message', data={'message': 'Сейчас ход противника!'}, room=game.second_player)
             response = await sio.call('xoxo', data={'message': 'Ваш ход', 'field': field},
                                       sid=game.first_player)  # здесь нужен таймаут!
             response = response['point']
