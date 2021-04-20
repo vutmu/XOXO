@@ -130,7 +130,7 @@ def authenticate_user(environ):
     regexp = '\s*AIOHTTP_SESSION='
     for i in cookies:
         if re.match(regexp, i):
-            AIOHTTP_SESSION = re.split('=', i)[-1]
+            AIOHTTP_SESSION = re.split(regexp, i)[-1]
     f = fernet.Fernet(fernet_key)
     return f.decrypt(bytes(AIOHTTP_SESSION, 'utf-8')).decode('utf-8')
 
