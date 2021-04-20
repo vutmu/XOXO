@@ -165,10 +165,12 @@ async def matchmaker(sid, data):
     player2_username, player2_user_id, player2_sid = player2[0], data['user_id'], player2[-1]
     response = await sio.call('approve_invite', data={'message': f'игрок {player1_username} вызывает вас ну дуель!'},
                               sid=player2_sid)
-    if response=='NO!':
-        await sio.emit('game_message', data={'message': f'игрок {player2_username} отклонил ваш вызов!'}, room=player1_sid)
-    elif response=='OK!':
-        await game_driver(player1_sid, player2_sid)
+    if response == 'NO!':
+        await sio.emit('game_message', data={'message': f'игрок {player2_username} отклонил ваш вызов!'},
+                       room=player1_sid)
+    elif response == 'OK!':
+        game_pool = {player1_sid: player1_username, player2_sid: player2_username}
+        await game_driver(game_pool)
     # print(f"игрок {player1_username} вызывает игрока {player2_username} на дуэль! ")
     print(response)
 
@@ -199,9 +201,10 @@ async def disconnect(sid):
 #         games_pool.append(game)
 #     else:
 #         print('else', command)
-#@sio.event
-async def game_driver(first_player, second_player):
-    room_battle=f'{first_player}__{second_player}'
+# @sio.event
+async def game_driver(game_pool):
+    first_player, second_player = game_pool.keys()
+    room_battle = f'{first_player}__{second_player}'
     sio.enter_room(first_player, room_battle)
     sio.enter_room(second_player, room_battle)
     game = Game(room_battle, first_player, second_player)
@@ -221,7 +224,12 @@ async def game_driver(first_player, second_player):
         await sio.emit('set_field', {'field': field}, room=room_battle)
     field = game.field.tolist()
     await sio.emit('set_field', {'field': field}, room=room_battle)
-    await sio.emit('game_message', {'message': approve_move}, room=room_battle)
-
+    if 'winner' in approve_move:
+        winner = game_pool[approve_move['winner']]
+        await sio.emit('game_message', {'message': f'{winner} победил!'}, room=room_battle)
+    else:
+        await sio.emit('game_message', {'message': approve_move}, room=room_battle)
+    sio.leave_room(first_player, room_battle)
+    sio.leave_room(second_player, room_battle)
 
 web.run_app(make_app(), port=os.environ['PORT'])

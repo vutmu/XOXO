@@ -34,7 +34,7 @@ class Game:
                     all(np.diagonal(self.field) == pattern) or \
                     all(np.diagonal(np.fliplr(self.field)) == pattern):
                 self.state = 1
-                return f'player{player_id}wins!'
+                return {'winner':player_id}
             elif self.move_count == 9:
                 self.state = 1
                 return 'ничейка!'
