@@ -21,6 +21,7 @@ if os.path.exists(dotenv_path):
 
 members = Queue()
 Visitors = redis.from_url(os.environ.get("REDIS_URL"), db=1)
+Visitors.flushdb()  # это очищает список визитеров перед запуском сервера!
 
 sio = socketio.AsyncServer()
 fernet_key = bytes(os.environ['FERNET_KEY'], 'ascii')
@@ -120,10 +121,10 @@ async def connect(sid, environ):
     avatar = obj['session']['avatar']
     user_id = str(obj['session']['user_id'])
     print(username, avatar, user_id)
-    await sio.save_session(sid, {'username': username, 'avatar': avatar, 'user_id': user_id})
+    await sio.save_session(sid, {'username': username, 'avatar': avatar, 'user_id': user_id, 'sid': sid})
     sio.enter_room(sid, 'Visitors')
     await sio.emit('add_visitor', {'data': (user_id, username, avatar)}, room='Visitors', skip_sid=sid)
-    Visitors.set(user_id, f"{username}, {avatar}")
+    Visitors.set(user_id, f"{username}, {avatar}, {sid}")
     print("connect ", sid, username)
 
 
@@ -147,13 +148,29 @@ async def chat_message(sid, data):
         List = []
         for i in Visitors.keys():
             user_id = i.decode('utf-8')
-            username, avatar = Visitors.get(i).decode('utf-8').split(', ')
+            username, avatar, _ = Visitors.get(i).decode('utf-8').split(', ')
             if session['user_id'] != user_id:
                 List.append((user_id, username, avatar))
         print('это лист', List)
         return List  # TODO тут нужна пагинация!
     else:
         print("message ", data)
+
+
+@sio.event
+async def matchmaker(sid, data):
+    session = await sio.get_session(sid)
+    player1_username, player1_user_id, player1_sid = session['username'], session['user_id'], sid
+    player2 = Visitors.get(data['user_id']).decode('utf-8').split(', ')
+    player2_username, player2_user_id, player2_sid = player2[0], data['user_id'], player2[-1]
+    response = await sio.call('approve_invite', data={'message': f'игрок {player1_username} вызывает вас ну дуель!'},
+                              sid=player2_sid)
+    if response=='NO!':
+        await sio.emit('game_message', data={'message': f'игрок {player2_username} отклонил ваш вызов!'}, sid=sid)
+    elif response=='OK!':
+        await game_driver(player1_sid, player2_sid)
+    # print(f"игрок {player1_username} вызывает игрока {player2_username} на дуэль! ")
+    print(response)
 
 
 @sio.event
@@ -182,28 +199,29 @@ async def disconnect(sid):
 #         games_pool.append(game)
 #     else:
 #         print('else', command)
-@sio.event
-async def game_driver(members):
-    first_player, second_player = members.get(), members.get()
-    sio.enter_room(first_player, 'room_battle')
-    sio.enter_room(second_player, 'room_battle')
-    game = Game('room_battle', first_player, second_player)
+#@sio.event
+async def game_driver(first_player, second_player):
+    room_battle=f'{first_player}__{second_player}'
+    sio.enter_room(first_player, room_battle)
+    sio.enter_room(second_player, room_battle)
+    game = Game(room_battle, first_player, second_player)
     while game.state == 0:
         field = game.field.tolist()
-        await sio.emit('set_field', {'field': field}, room='room_battle')
-        sid = game.first_player
+        await sio.emit('set_field', {'field': field}, room=room_battle)
         approve_move = False
         while not approve_move:
-            response = await sio.call('xoxo', data={'message': 'Ваш ход', 'field': field}, sid=sid)
+            await sio.emit('game_message', data={'message': 'Сейчас ход противника!'}, sid=game.second_player)
+            response = await sio.call('xoxo', data={'message': 'Ваш ход', 'field': field},
+                                      sid=game.first_player)  # здесь нужен таймаут!
             response = response['point']
             move = tuple(map(int, response.split(',')))
-            approve_move = game.move(sid, move)
+            approve_move = game.move(game.first_player, move)
             if not approve_move:
-                await sio.emit('game_message', data={'message': 'клетка уже занята!'}, room=sid)
-        await sio.emit('set_field', {'field': field}, room='room_battle')
+                await sio.emit('game_message', data={'message': 'клетка уже занята!'}, room=game.first_player)
+        await sio.emit('set_field', {'field': field}, room=room_battle)
     field = game.field.tolist()
-    await sio.emit('set_field', {'field': field}, room='room_battle')
-    await sio.emit('game_message', {'message': approve_move}, room='room_battle')
+    await sio.emit('set_field', {'field': field}, room=room_battle)
+    await sio.emit('game_message', {'message': approve_move}, room=room_battle)
 
 
 web.run_app(make_app(), port=os.environ['PORT'])

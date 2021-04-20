@@ -21,7 +21,8 @@ function render_visitor(element){
     let avatar=element[2]
     let visitorblock = `
                 <div class="visitorblock" id=${user_id}>
-                    ${name}<br>
+                    ${name}
+                    <input type="button" name=${user_id} class="btn" value="Дуэль!"><br>
                     <img src=${avatar} class="avka" alt="avatarka">
                 </div>`;
     $('#visitors').append(visitorblock)
@@ -44,7 +45,8 @@ function field(field){
     })
 }
 
-async function move() {
+async function move(message) {
+     $('#game_message').html(message)
      return new Promise((resolve,reject)=>{
         $("#grid-container>*").on('click',function() {
             let point={point:$(this).attr('id')}
@@ -53,32 +55,11 @@ async function move() {
         }
     )}
 
-//это типо коекак работает?..
-//async function move() {
-//     return new Promise((resolve,reject)=>{
-//        $("#grid-container>*").on('click',function() {
-//            let point={point:$(this).attr('id')}
-//            console.log("move запущен", point)
-//
-//            resolve(()=>{
-//
-//	            console.log(point)
-//            })
-//        })
-//        }
-//    )}
+async function invite(message) {
+   if (confirm(message)) {return 'OK!'}
+   else {return 'NO!'}
+}
 
-//    await $("#grid-container>*").on('click',function() {
-//  if ($(this).text()=='') {
-//  	console.log($(this).attr('id'))
-//  	let point={point:$(this).attr('id')}
-//	console.log(point)
-//	return point
-//	}
-//  else {
-//    return('клетка не пуста!')
-//  }
-//})
 socket.on("set_field", (data) => {
     field(data)
 })
@@ -88,5 +69,19 @@ socket.on("game_message", (data) => {
 })
 
 socket.on("xoxo", async (data, callback) => {
-    await callback(await move())
+    await callback(await move(data.message))
+})
+
+socket.on('approve_invite', async (data, callback) =>{
+    await callback( await invite(data.message))
+})
+
+$(document).ready(function(){
+    console.log('document ready func started');
+    $('#visitors').on('click','div.visitorblock>input', function() {
+    console.log('click-clack')
+    let user_id=$(this).attr("name")
+    console.log(user_id)
+    socket.emit("matchmaker", {'user_id':user_id})
+    });
 })
